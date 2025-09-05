@@ -407,7 +407,7 @@ const Dashboard: React.FC = () => {
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
             <div className="flex items-center space-x-3">
               <div className="p-1 bg-gradient-to-r from-white-500 to-black-500 rounded-lg shadow">
-                <img src="src/assets/logo.png" alt="TharUrja_Guard Logo" className="w-10 h-10 object-contain" />
+                <img src="assets/logo.png" alt="TharUrja_Guard Logo" className="w-10 h-10 object-contain" />
               </div>
               <div>
                 <h1 className="text-2xl font-bold">TharUrja_Guard</h1>
