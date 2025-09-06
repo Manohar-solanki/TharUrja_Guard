@@ -737,7 +737,7 @@ const Dashboard: React.FC = () => {
             </div>
             <div className="p-4 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg">
               <h4 className="font-medium text-purple-900 dark:text-purple-300 mb-2">Protection</h4>
-              <p className="text-sm text-purple-700 dark:text-purple-200">Wear masks when PM2.5 > 50. Use sunscreen and UV-protective clothing.</p>
+              <p className="text-sm text-purple-700 dark:text-purple-200">Wear masks when PM2.5 &gt; 50. Use sunscreen and UV-protective clothing.</p>
             </div>
           </div>
         </div>
