@@ -30,6 +30,8 @@ import { format } from 'date-fns';
 
 // === CONFIG ===
 const AQICN_API_TOKEN = '8065ba76c4e7a82cb055fe8249d312b08c4ec58d';
+// ✅ Use your own OpenWeatherMap API key here 👇
+const OPENWEATHER_API_KEY = '93d9fe329c9efb6156eb0736d6600442'; // ← REPLACE WITH YOUR KEY
 
 interface EnvironmentalData {
   timestamp: string;
@@ -95,18 +97,18 @@ const Dashboard: React.FC = () => {
   const [suggestions, setSuggestions] = useState<{ name: string; country: string; lat: number; lon: number }[]>([]);
   const [showSuggestions, setShowSuggestions] = useState<boolean>(false);
 
-  // 🔌 PWA Install Prompt
+  // PWA Install Prompt
   const [installPrompt, setInstallPrompt] = useState<any>(null);
 
-  // 🌙 Dark Mode
+  // Dark Mode
   const [darkMode, setDarkMode] = useState<boolean>(() => {
     return localStorage.getItem('darkMode') === 'true';
   });
 
-  // 🔔 Alert Notifications
+  // Alerts
   const [alertEnabled, setAlertEnabled] = useState<boolean>(false);
 
-  // Load last city from localStorage
+  // Load last city
   useEffect(() => {
     const saved = localStorage.getItem('lastCity');
     if (saved) {
@@ -122,7 +124,7 @@ const Dashboard: React.FC = () => {
     }
   }, []);
 
-  // 💡 Dark Mode Effect
+  // Dark Mode Effect
   useEffect(() => {
     if (darkMode) {
       document.documentElement.classList.add('dark');
@@ -132,7 +134,7 @@ const Dashboard: React.FC = () => {
     localStorage.setItem('darkMode', darkMode.toString());
   }, [darkMode]);
 
-  // 📲 PWA Install Prompt Listener
+  // PWA Install Prompt
   useEffect(() => {
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
@@ -140,20 +142,17 @@ const Dashboard: React.FC = () => {
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-
-    return () => {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    };
+    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
   }, []);
 
-  // 🔔 Request Notification Permission
+  // Notification Permission
   useEffect(() => {
     if ('Notification' in window) {
       Notification.requestPermission();
     }
   }, []);
 
-  // ⚠️ Watch for Risk Level Change Alerts
+  // Risk Alerts
   useEffect(() => {
     if (!alertEnabled || !currentData || historicalData.length < 2) return;
 
@@ -174,28 +173,32 @@ const Dashboard: React.FC = () => {
     }
   }, [currentData, alertEnabled, historicalData]);
 
-  // Fetch AQI Data — ✅ FIXED URL (removed space in "geo :")
+  // ✅ FIXED: AQI Fetch with Logging
   const fetchAQIData = async (
     latitude: number,
     longitude: number,
     cityName: string,
     countryName: string = 'India'
   ) => {
+    console.log("🌍 fetchAQIData called for:", { latitude, longitude, cityName });
     try {
       setLoading(true);
       setError(null);
       setIsSearching(false);
 
-      const res = await fetch(
-        `https://api.waqi.info/feed/geo:${latitude};${longitude}/?token=${AQICN_API_TOKEN}`
-      );
+      const url = `https://api.waqi.info/feed/geo:${latitude};${longitude}/?token=${AQICN_API_TOKEN}`;
+      console.log("📡 AQI URL:", url);
 
-      if (!res.ok) throw new Error(`Failed to fetch (${res.status})`);
+      const res = await fetch(url);
+      console.log("📡 AQI Response Status:", res.status);
+
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
       const data = await res.json();
+      console.log("✅ AQI Raw Data:", data);
 
       if (data.status !== 'ok') {
-        throw new Error(data.data || 'No station found nearby');
+        throw new Error(data.data || 'No AQI station found nearby. Try a major city.');
       }
 
       const airQuality = data.data.iaqi;
@@ -224,21 +227,21 @@ const Dashboard: React.FC = () => {
       setCity(cityName);
       setCountry(countryName);
 
-      // Save to localStorage
       localStorage.setItem(
         'lastCity',
         JSON.stringify({ city: cityName, country: countryName, lat: latitude, lon: longitude })
       );
     } catch (err: any) {
-      console.error('Fetch failed:', err);
-      setError(err.message);
+      console.error('❌ fetchAQIData failed:', err);
+      setError(err.message || 'Unable to fetch environmental data. Try another location.');
     } finally {
       setLoading(false);
     }
   };
 
-  // Fetch city suggestions — ✅ ADDED encodeURI
+  // ✅ FIXED: Suggestions with HTTPS + Logging
   const fetchSuggestions = async (query: string) => {
+    console.log("🔍 fetchSuggestions called with query:", query);
     if (query.length < 2) {
       setSuggestions([]);
       setShowSuggestions(false);
@@ -246,13 +249,20 @@ const Dashboard: React.FC = () => {
     }
 
     try {
-      const res = await fetch(
-        `http://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(query)}&limit=5&appid=93d9fe329c9efb6156eb0736d6600442`
-      );
+      const encodedQuery = encodeURIComponent(query);
+      const url = `https://api.openweathermap.org/geo/1.0/direct?q=${encodedQuery}&limit=5&appid=${OPENWEATHER_API_KEY}`;
+      console.log("📡 Fetching suggestions from:", url);
 
-      if (!res.ok) throw new Error('Network error');
+      const res = await fetch(url);
+      console.log("📡 Suggestions Response Status:", res.status);
+
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
       const data = await res.json();
+      console.log("✅ Suggestions Data:", data);
+
+      if (!Array.isArray(data)) throw new Error('Invalid response format');
+
       const cities = data.map((item: any) => ({
         name: item.name,
         country: item.country,
@@ -263,7 +273,8 @@ const Dashboard: React.FC = () => {
       setSuggestions(cities);
       setShowSuggestions(cities.length > 0);
     } catch (err) {
-      console.error("Failed to fetch suggestions:", err);
+      console.error("❌ fetchSuggestions failed:", err);
+      setError('Failed to load suggestions. Check API key or network.');
       setSuggestions([]);
       setShowSuggestions(false);
     }
@@ -277,14 +288,23 @@ const Dashboard: React.FC = () => {
     }
 
     setLoading(true);
+    setError(null);
+
     navigator.geolocation.getCurrentPosition(
       (position) => {
         const { latitude, longitude } = position.coords;
+        console.log("📍 User location:", { latitude, longitude });
         fetchAQIData(latitude, longitude, 'Your Location', '');
       },
       (err) => {
+        console.error("❌ Geolocation error:", err);
         setError(`Unable to get location: ${err.message}`);
         setLoading(false);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0
       }
     );
   };
@@ -386,17 +406,18 @@ const Dashboard: React.FC = () => {
     return () => document.removeEventListener('click', handleClickOutside);
   }, []);
 
-  // ✅ FIXED: Robust search function that falls back to direct geocoding
+  // ✅ ROBUST searchCity with full fallbacks + logging
   const searchCity = async (query: string) => {
+    console.log("🚀 searchCity triggered with:", query);
     if (!query.trim()) return;
 
     setIsSearching(true);
     setError(null);
 
-    // First, try matching from current suggestions
+    // Try matching from suggestions
     const suggestion = suggestions.find(s => s.name.toLowerCase() === query.toLowerCase());
-
     if (suggestion) {
+      console.log("🎯 Matched suggestion:", suggestion);
       await fetchAQIData(suggestion.lat, suggestion.lon, suggestion.name, suggestion.country);
       setSearchQuery(suggestion.name);
       setSuggestions([]);
@@ -405,21 +426,29 @@ const Dashboard: React.FC = () => {
       return;
     }
 
-    // Fallback: fetch directly from API
+    // Fallback: fetch from API directly
     try {
-      const res = await fetch(
-        `http://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(query)}&limit=1&appid=93d9fe329c9efb6156eb0736d6600442`
-      );
+      const encodedQuery = encodeURIComponent(query);
+      const url = `https://api.openweathermap.org/geo/1.0/direct?q=${encodedQuery}&limit=1&appid=${OPENWEATHER_API_KEY}`;
+      console.log("📡 Direct search URL:", url);
 
-      if (!res.ok) throw new Error('City not found');
+      const res = await fetch(url);
+      console.log("📡 Direct search status:", res.status);
+
+      if (!res.ok) throw new Error('City not found or API limit reached.');
 
       const data = await res.json();
-      if (data.length === 0) throw new Error('No results found');
+      console.log("✅ Direct search result:", data);
+
+      if (!data || data.length === 0) {
+        throw new Error('No city found with that name. Try a major city.');
+      }
 
       const cityData = data[0];
       await fetchAQIData(cityData.lat, cityData.lon, cityData.name, cityData.country);
       setSearchQuery(cityData.name);
     } catch (err: any) {
+      console.error("❌ searchCity failed:", err);
       setError(err.message || 'City not found. Please try another.');
     } finally {
       setSuggestions([]);
@@ -458,20 +487,24 @@ const Dashboard: React.FC = () => {
                   }}
                   onKeyPress={(e) => {
                     if (e.key === 'Enter') {
+                      e.preventDefault();
                       if (showSuggestions && suggestions.length > 0) {
-                        // Auto-select first suggestion
                         const first = suggestions[0];
+                        console.log("✅ Enter key: selecting first suggestion", first);
                         fetchAQIData(first.lat, first.lon, first.name, first.country);
                         setSearchQuery(first.name);
                         setSuggestions([]);
                         setShowSuggestions(false);
                       } else {
-                        // Trigger search
                         searchCity(searchQuery);
                       }
                     }
                   }}
-                  onFocus={() => searchQuery && showSuggestions && setSuggestions(suggestions)}
+                  onFocus={() => {
+                    if (searchQuery && suggestions.length > 0) {
+                      setShowSuggestions(true);
+                    }
+                  }}
                   className="w-full pl-10 pr-10 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-orange-400 focus:border-transparent outline-none transition"
                 />
                 <Search className="absolute left-3 top-2.5 w-5 h-5 text-gray-400 dark:text-gray-400" />
@@ -480,6 +513,7 @@ const Dashboard: React.FC = () => {
                     onClick={() => {
                       setSearchQuery('');
                       setSuggestions([]);
+                      setShowSuggestions(false);
                     }}
                     className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
                   >
@@ -703,7 +737,7 @@ const Dashboard: React.FC = () => {
             </div>
             <div className="p-4 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg">
               <h4 className="font-medium text-purple-900 dark:text-purple-300 mb-2">Protection</h4>
-              <p className="text-sm text-purple-700 dark:text-purple-200">Wear masks when PM2.5 &gt; 50. Use sunscreen and UV-protective clothing.</p>
+              <p className="text-sm text-purple-700 dark:text-purple-200">Wear masks when PM2.5 > 50. Use sunscreen and UV-protective clothing.</p>
             </div>
           </div>
         </div>
