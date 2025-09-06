@@ -410,7 +410,7 @@ const Dashboard: React.FC = () => {
                 <img src="/logo.png" alt="TharUrja_Guard Logo" className="w-10 h-10 object-contain" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold">TharUrja_Guard</h1>
+                <h1 className="text-2xl font-bold">TharUrja_Weather</h1>
                 <p className="text-sm text-gray-600 dark:text-gray-300">Environmental Intelligence Platform</p>
               </div>
             </div>
