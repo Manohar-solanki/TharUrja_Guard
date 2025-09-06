@@ -174,7 +174,7 @@ const Dashboard: React.FC = () => {
     }
   }, [currentData, alertEnabled, historicalData]);
 
-  // Fetch AQI Data
+  // Fetch AQI Data — ✅ FIXED URL (removed space in "geo :")
   const fetchAQIData = async (
     latitude: number,
     longitude: number,
@@ -237,7 +237,7 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  // Fetch city suggestions
+  // Fetch city suggestions — ✅ ADDED encodeURI
   const fetchSuggestions = async (query: string) => {
     if (query.length < 2) {
       setSuggestions([]);
@@ -247,7 +247,7 @@ const Dashboard: React.FC = () => {
 
     try {
       const res = await fetch(
-        `http://api.openweathermap.org/geo/1.0/direct?q=${query}&limit=5&appid=93d9fe329c9efb6156eb0736d6600442`
+        `http://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(query)}&limit=5&appid=93d9fe329c9efb6156eb0736d6600442`
       );
 
       if (!res.ok) throw new Error('Network error');
@@ -263,6 +263,7 @@ const Dashboard: React.FC = () => {
       setSuggestions(cities);
       setShowSuggestions(cities.length > 0);
     } catch (err) {
+      console.error("Failed to fetch suggestions:", err);
       setSuggestions([]);
       setShowSuggestions(false);
     }
@@ -385,17 +386,45 @@ const Dashboard: React.FC = () => {
     return () => document.removeEventListener('click', handleClickOutside);
   }, []);
 
-  // Handle search
-  const searchCity = (query: string) => {
+  // ✅ FIXED: Robust search function that falls back to direct geocoding
+  const searchCity = async (query: string) => {
     if (!query.trim()) return;
+
+    setIsSearching(true);
+    setError(null);
+
+    // First, try matching from current suggestions
     const suggestion = suggestions.find(s => s.name.toLowerCase() === query.toLowerCase());
+
     if (suggestion) {
-      fetchAQIData(suggestion.lat, suggestion.lon, suggestion.name, suggestion.country);
+      await fetchAQIData(suggestion.lat, suggestion.lon, suggestion.name, suggestion.country);
       setSearchQuery(suggestion.name);
       setSuggestions([]);
       setShowSuggestions(false);
-    } else {
-      setError('City not found. Please try another.');
+      setIsSearching(false);
+      return;
+    }
+
+    // Fallback: fetch directly from API
+    try {
+      const res = await fetch(
+        `http://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(query)}&limit=1&appid=93d9fe329c9efb6156eb0736d6600442`
+      );
+
+      if (!res.ok) throw new Error('City not found');
+
+      const data = await res.json();
+      if (data.length === 0) throw new Error('No results found');
+
+      const cityData = data[0];
+      await fetchAQIData(cityData.lat, cityData.lon, cityData.name, cityData.country);
+      setSearchQuery(cityData.name);
+    } catch (err: any) {
+      setError(err.message || 'City not found. Please try another.');
+    } finally {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      setIsSearching(false);
     }
   };
 
@@ -427,7 +456,21 @@ const Dashboard: React.FC = () => {
                     setSearchQuery(value);
                     fetchSuggestions(value);
                   }}
-                  onKeyPress={(e) => e.key === 'Enter' && searchCity(searchQuery)}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter') {
+                      if (showSuggestions && suggestions.length > 0) {
+                        // Auto-select first suggestion
+                        const first = suggestions[0];
+                        fetchAQIData(first.lat, first.lon, first.name, first.country);
+                        setSearchQuery(first.name);
+                        setSuggestions([]);
+                        setShowSuggestions(false);
+                      } else {
+                        // Trigger search
+                        searchCity(searchQuery);
+                      }
+                    }
+                  }}
                   onFocus={() => searchQuery && showSuggestions && setSuggestions(suggestions)}
                   className="w-full pl-10 pr-10 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-orange-400 focus:border-transparent outline-none transition"
                 />
@@ -660,7 +703,7 @@ const Dashboard: React.FC = () => {
             </div>
             <div className="p-4 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg">
               <h4 className="font-medium text-purple-900 dark:text-purple-300 mb-2">Protection</h4>
-              <p className="text-sm text-purple-700 dark:text-purple-200">Wear masks when PM2.5 &gt; 50. Use sunscreen and UV-protective clothing.</p>
+              <p className="text-sm text-purple-700 dark:text-purple-200">Wear masks when PM2.5 > 50. Use sunscreen and UV-protective clothing.</p>
             </div>
           </div>
         </div>
